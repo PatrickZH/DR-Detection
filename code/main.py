@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import time
 import torchvision.transforms as transforms
 import torchvision.models.resnet as resnet
+import torchvision.models.inception as Inception
 import PIL.Image as Image
 from torch.utils.data import Dataset, DataLoader
 from utils import data_process, data_process_simple, data_process_batches, dataset_construct, dataset_construct_from_memory, dataset_construct_from_batches, one_hot
@@ -49,6 +50,7 @@ def continuous_kappa(y, t, y_pow=1, eps=1e-15):
 
 def epoch(mode, Iter, dataloader, batchsize, net, criterion_MSE, criterion_CE, alpha = 1, lr=0.001, decay=0.0005):
     # train
+    torch.cuda.empty_cache()
     loss_avg = 0
     loss_CE_avg = 0
     loss_MSE_avg = 0
@@ -119,7 +121,7 @@ def epoch(mode, Iter, dataloader, batchsize, net, criterion_MSE, criterion_CE, a
 
 
         # classification loss
-        output, feat = net(img)
+        output = net(img)
         indices = torch.tensor([0, 1, 2, 3, 4]).cuda()
         logist = torch.index_select(output, -1, indices)
         indices = torch.tensor([5]).cuda()
@@ -145,6 +147,8 @@ def epoch(mode, Iter, dataloader, batchsize, net, criterion_MSE, criterion_CE, a
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            if i_batch%247==0:
+                print("    Have trained %d batch, loss = %.6f" % (i_batch, loss_avg/num_exp))
 
 
         pred_all = pred_all + np.argmax(logist.cpu().data.numpy(), axis=-1).tolist()
@@ -180,7 +184,7 @@ def main():
     # print('mark: with strong data augmentation')
     dataset = 'kaggle'
     alpha = 0
-    batchsize = 256
+    batchsize = 24
     worknum = 8
     lr = 0.001
     gamma = 0.5
@@ -263,7 +267,16 @@ def main():
 
     # train
     if network_depth == 18:
-        net = net_resnet.resnet18(num_features=dim, num_classes=num_output, pretrained=pretrain).cuda()
+        #net = net_resnet.resnet18(num_features=dim, num_classes=num_output, pretrained=pretrain).cuda()
+        net = Inception.inception_v3(num_classes=num_output,aux_logits=False).cuda()
+        #tempnet = Inception.inception_v3(pretrained=pretrain)
+        #pretrained_dict = tempnet.state_dict()
+        #model_dict = net.state_dict()
+        # 将pretrained_dict里不属于model_dict的键剔除掉
+        #pretrained_dict =  {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        #model_dict.update(pretrained_dict)
+        # 加载我们真正需要的state_dict
+        #net.load_state_dict(model_dict)
     elif network_depth == 50:
         net = net_resnet.resnet50(num_features=dim, num_classes=num_output, pretrained=pretrain).cuda()
     else:
@@ -303,7 +316,9 @@ def main():
 
 
         epoch('train', Iter, dataloader_train, batchsize, net, criterion_MSE, criterion_CE, alpha=alpha, lr=lr, decay=decay)
-
+        
+        torch.save(net.state_dict(),'newpara with code1.pth')
+        print("SaveDone\n")
 
         # if Iter%3 == 0:
         epoch('val', Iter, dataloader_val, batchsize, net, criterion_MSE, criterion_CE, alpha=alpha)

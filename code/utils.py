@@ -30,25 +30,25 @@ im_mean = np.array([0.3460425078848989, 0.24051744191557664, 0.17183285806797155
 im_std = np.array([0.2975885854228362, 0.21424068839221927, 0.1711617604127343], dtype=np.float)
 transform_train = transforms.Compose(
     [  # transforms.Resize(size=(int(shape_img[0]), int(shape_img[1]))),
-        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.25),
-        transforms.RandomGrayscale(),
-        transforms.RandomRotation(180),
+        #transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.25),
+        #transforms.RandomGrayscale(1),
         transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
         # transforms.RandomResizedCrop(size=shape_img[0], scale=(0.6, 1.0)),
-        transforms.RandomCrop(size=shape_img, padding=int(shape_img[0]/8)),
+        # transforms.RandomCrop(size=shape_img, padding=int(shape_img[0]/8)),
         transforms.ToTensor(), transforms.Normalize(im_mean, im_std)])
 transform_test = transforms.Compose(
     [transforms.Resize(size=shape_img), transforms.ToTensor(), transforms.Normalize(im_mean, im_std)])
-
+np.random.seed(20190507)
 
 
 
 def data_process(dataset):
     if dataset == 'kaggle':
-        root_path = '..'
+        root_path = '../'
         imgpath_trainval = os.path.join(root_path, 'nettraindata').replace('\\', '/')
         imgpath_test = os.path.join(root_path, 'nettestdata').replace('\\', '/') 
-        trainval_id_path = os.path.join(root_path, 'nettraindata\\trainLabels.csv').replace('\\', '/')
+        trainval_id_path = os.path.join(root_path, 'nettraindata\\nettrainLabels.csv').replace('\\', '/')
         test_id_path = os.path.join(root_path, 'nettestdata\\testLabels.csv').replace('\\', '/')
 
         print('use data in %s, %s'%(imgpath_trainval, imgpath_test))
@@ -68,22 +68,23 @@ def data_process(dataset):
             for i, each in enumerate(dict_reader):
                 # if i == 1000:
                 #     break
-                image = each['image'] + '.jpeg'
-                level = int(each['level'])
-                repeat = ratio_databalance[level]
-                if image in files_trainval:
-                    if np.random.rand()<threshold:
-                        ##### data balance
-                        for re in range(repeat):
-                            images_train.append(os.path.join(imgpath_trainval, image).replace('\\', '/'))
-                            labels_train.append(level)
+                if np.random.rand()<0.3:
+                    image = each['image']
+                    level = int(each['level'])
+                    repeat = ratio_databalance[level]
+                    if image in files_trainval:
+                        if np.random.rand()<threshold:
+                            ##### data balance
+                            for re in range(repeat):
+                                images_train.append(os.path.join(imgpath_trainval, image).replace('\\', '/'))
+                                labels_train.append(level)
+                        else:
+                            ##### data balance
+                            for re in range(repeat):
+                                images_val.append(os.path.join(imgpath_trainval, image).replace('\\', '/'))
+                                labels_val.append(level)
                     else:
-                        ##### data balance
-                        for re in range(repeat):
-                            images_val.append(os.path.join(imgpath_trainval, image).replace('\\', '/'))
-                            labels_val.append(level)
-                else:
-                    num_error +=1
+                        num_error +=1
         print('errors: %d wrong images in trainval data'%num_error)
 
         num_error = 0
@@ -172,6 +173,9 @@ class dataset_construct(Dataset):
         except:
             print('error in loading image: %s'%img)
         if self.transform:
+            degree = [0,90,180,270]
+            rot_index = int(np.random.rand()*4)
+            img = img.rotate(degree[rot_index])
             img = self.transform(img)
         return img, lab
 
